@@ -1,2 +1,2 @@
 # aliexpress-scraper
-A puppeteer scraper for the Aliexpress website.
+A puppeteer scraper for Aliexpress.
