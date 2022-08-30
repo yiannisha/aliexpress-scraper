@@ -42,25 +42,16 @@ class Scraper {
     this.browser = browser;
     this.page = page;
 
-    // if (this.debug) {
-    //
-    //   // cannot do [this.browser, this.page] = this.async...
-    //   // because the 'this' in front of the function takes a value other than self
-    //   const out = this.asyncLogTime(`setup`, this.setUpBrowserAndPage, [this]);
-    //
-    //   this.browser = out[0];
-    //   this.page = out[1];
-    // }
-    // else {
-    //   const out = this.setUpBrowserAndPage(this);
-    //   this.browser = out[0];
-    //   this.page = out[1];
-    // }
-
-    // this.requests = 0
-    // this.shippingData = {};
   }
 
+  /*
+   * Use this method to construct a scraper object. Allows asynchronous
+   * browser and page set up to be done and returns the Scraper object that
+   * can control them when it resolves.
+   *
+   * The parameters are the same as the constructor's.
+   *
+   */
   static async build ( headless = true, debug = false,
                 devtools = false, browserWSEndpoint = null, browserArgs = {} ) {
 
@@ -262,7 +253,17 @@ class Scraper {
    */
    async scrapeUrl (itemUrl) {
 
-     await this.page.goto(itemUrl);
+     var error = false;
+     do {
+       try {
+         await this.page.goto(itemUrl);
+         error = false;
+       }
+       catch (TimeoutError) {
+         console.log(`A timeout error occured at: ${itemUrl}`);
+         error = true;
+       }
+     } while(error);
 
      // get the data that is already in the page's html
      // click all possible variations to initiate all requests
@@ -270,38 +271,43 @@ class Scraper {
        let lists = document.getElementsByClassName('sku-property-list');
        var variations = 1;
 
-       // number of all possible variations
-       for (list of lists) {
-         variations *= list.children.length;
-       }
+       console.log(lists);
 
-       // click all possible variations
-       lists[0].children[0].click();
-       if (lists.length > 1) {
-         clickAllItems(lists[1], 1);
-       }
+       if (lists.length > 0) {
+         // number of all possible variations
+         for (list of lists) {
+           variations *= list.children.length;
+         }
 
-       // recursive function to click all possible variations
-       // console.log here prints inside the page's console
-       function clickAllItems (list, index=0) {
-           let final = index == (lists.length - 1);
-           let children = (index) ? Array.from(list.children):Array.from(list.children).slice(1);
-           if (!final) {
-             for (child of children) {
-                 child.click();
+         // click all possible variations
+         lists[0].children[0].click();
+         if (lists.length > 1) {
+           clickAllItems(lists[1], 1);
+         }
+
+         // recursive function to click all possible variations
+         // console.log here prints inside the page's console
+         function clickAllItems (list, index=0) {
+             let final = index == (lists.length - 1);
+             let children = (index) ? Array.from(list.children):Array.from(list.children).slice(1);
+             if (!final) {
+               for (child of children) {
+                   child.click();
+                   // console.log(index);
+                   clickAllItems(lists[index+1], index+1);
+               }
+             }
+             else {
+               for (child of children) {
                  // console.log(index);
-                 clickAllItems(lists[index+1], index+1);
+                 child.click();
+               }
              }
-           }
-           else {
-             for (child of children) {
-               // console.log(index);
-               child.click();
-             }
-           }
-       }
+         }
 
-       clickAllItems(lists[0]);
+         clickAllItems(lists[0]);
+
+       }
 
        // return already available data stored inside the runParams object
        // and the number of possible variations
@@ -319,11 +325,8 @@ class Scraper {
        });
      }
 
-     // console.log(Object.keys(Scraper.shippingData));
      // at this point we have all needed data and we can format it
      let out = utils.formatData(data[0].data, Scraper.shippingData);
-     // let out = Scraper.shippingData;
-     // let out = null;
 
      Scraper.shippingData = {};
      Scraper.requests = 0;
